@@ -53,7 +53,7 @@ from dm_control.suite.wrappers import pixels
 import numpy as np
 
 # Load one task:
-env = suite.load(domain_name="cartpole", task_name="swingup")
+env = suite.load(domain_name='walker', task_name='walk')
 # wrapped_env = pixels.Wrapper(env, render_kwargs={'camera_id': 0})
 
 # Iterate over a task set:
@@ -92,7 +92,7 @@ for i in range(100):
 
 import imageio
 from pathlib import Path
-video_path = Path.home() / '.curl/sample.mp4'
+video_path = Path.home() / '.curl/walker-walk.mp4'
 imageio.mimsave(str(video_path), images, fps=24)
 
 
