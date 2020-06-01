@@ -350,7 +350,8 @@ class CurlSacAgent(object):
     def select_action(self, obs):
         # logger.info(obs.shape)
         with torch.no_grad():
-            obs = torch.FloatTensor(obs).to(self.device)
+            idx = np.random.randint(0, 2, size=1)
+            obs = torch.FloatTensor(obs[idx]).to(self.device).squeeze()
             obs = obs.unsqueeze(0)
             # logger.info(obs.shape)
             mu, _, _, _ = self.actor(
@@ -363,7 +364,8 @@ class CurlSacAgent(object):
             obs = utils.center_crop_image(obs, self.image_size)
 
         with torch.no_grad():
-            obs = torch.FloatTensor(obs).to(self.device)
+            idx = np.random.randint(0, 2, size=1)
+            obs = torch.FloatTensor(obs[idx]).to(self.device).squeeze()
             obs = obs.unsqueeze(0)
             mu, pi, _, _ = self.actor(obs, compute_log_pi=False)
             return pi.cpu().data.numpy().flatten()

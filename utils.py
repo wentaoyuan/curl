@@ -122,7 +122,7 @@ class ReplayBuffer(Dataset):
         # the proprioceptive obs is stored as float32, pixels obs as uint8
         obs_dtype = np.float32 if len(obs_shape) == 1 else np.uint8
 
-        self.obses = np.empty((capacity, *obs_shape), dtype=obs_dtype)
+        self.obses = np.empty((capacity, *obs_shape), dtype=obs_dtype)  # capacity, num_camera, num_channel, ...
         self.next_obses = np.empty((capacity, *obs_shape), dtype=obs_dtype)
         self.actions = np.empty((capacity, *action_shape), dtype=np.float32)
         self.rewards = np.empty((capacity, 1), dtype=np.float32)
@@ -131,6 +131,14 @@ class ReplayBuffer(Dataset):
         self.idx = 0
         self.last_save = 0
         self.full = False
+
+    @property
+    def num_camera(self):
+        return self.obses.shape[1]
+
+    @property
+    def num_channel(self):
+        return self.obses.shape[2]
 
     def add(self, obs, action, reward, next_obs, done):
 
@@ -143,14 +151,18 @@ class ReplayBuffer(Dataset):
         self.idx = (self.idx + 1) % self.capacity
         self.full = self.full or self.idx == 0
 
+    def _get_random_index(self):
+        return np.random.randint(0, self.capacity if self.full else self.idx, size=self.batch_size)
+
+    def _get_random_camera_index(self):
+        return np.random.randint(0, self.num_camera, size=self.batch_size)
+
     def sample_proprio(self):
+        idxs = self._get_random_index()
+        cam_idxs = self._get_random_camera_index()
 
-        idxs = np.random.randint(
-            0, self.capacity if self.full else self.idx, size=self.batch_size
-        )
-
-        obses = self.obses[idxs]
-        next_obses = self.next_obses[idxs]
+        obses = self.obses[idxs][cam_idxs]
+        next_obses = self.next_obses[idxs][cam_idxs]
 
         obses = torch.as_tensor(obses, device=self.device).float()
         actions = torch.as_tensor(self.actions[idxs], device=self.device)
@@ -162,14 +174,11 @@ class ReplayBuffer(Dataset):
         return obses, actions, rewards, next_obses, not_dones
 
     def sample_cpc(self):
+        idxs = self._get_random_index()
+        cam_idxs = self._get_random_camera_index()
 
-        start = time.time()
-        idxs = np.random.randint(
-            0, self.capacity if self.full else self.idx, size=self.batch_size
-        )
-
-        obses = self.obses[idxs]
-        next_obses = self.next_obses[idxs]
+        obses = self.obses[idxs, cam_idxs]
+        next_obses = self.next_obses[idxs, cam_idxs]
         pos = obses.copy()
         # logger.info((obses.shape, next_obses.shape))
 
@@ -278,31 +287,31 @@ def random_crop(imgs, output_size):
     and picking out random ones
 
     args:
-        imgs, batch images with shape (B,C,H,W)
+        imgs, batch images with shape (B,C,H,W) or (B,n,C,H,W)
     """
-    # batch size
-    # logger.info(imgs.shape)
-    assert imgs.ndim == 5
-    B, n, C, H, W = imgs.shape
+    assert imgs.ndim in (4, 5)
+    extra_dim = imgs.ndim == 5
+    B = imgs.shape[0]
+    C, H, W = imgs.shape[-3:]
+    n = imgs.shape[1] if extra_dim else 1
     assert H == W
+    # B, n, C, H, W = imgs.shape
     img_size = W
     crop_max = img_size - output_size
-    # logger.info(imgs.shape)
-    imgs = np.transpose(imgs, (0, 1, 3, 4, 2))  # (B,n,H,W,C)
-    # logger.info(imgs.shape)
-    imgs = imgs.reshape((B * n, H, W, C))
-    # logger.info(imgs.shape)
+    if extra_dim:
+        imgs = np.transpose(imgs, (0, 1, 3, 4, 2))  # (B,n,H,W,C)
+        imgs = imgs.reshape((B * n, H, W, C))
+    else:
+        imgs = np.transpose(imgs, (0, 2, 3, 1))  # (B,H,W,C)
+
     w1 = np.random.randint(0, crop_max, B * n)
     h1 = np.random.randint(0, crop_max, B * n)
-    # creates all sliding windows combinations of size (output_size)
     windows = view_as_windows(
         imgs, (1, output_size, output_size, 1))[..., 0, :, :, 0]
     # selects a random window for each batch element
-    # logger.info(windows.shape)
     cropped_imgs = windows[np.arange(B * n), w1, h1]
-    # logger.info(cropped_imgs.shape)
-    cropped_imgs = cropped_imgs.reshape((B, n, C, *cropped_imgs.shape[-2:]))
-    # logger.info(cropped_imgs.shape)
+    if extra_dim:
+        cropped_imgs = cropped_imgs.reshape((B, n, C, *cropped_imgs.shape[-2:]))
     return cropped_imgs
 
 

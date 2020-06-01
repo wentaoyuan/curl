@@ -70,16 +70,14 @@ class PixelEncoder(nn.Module):
         return h
 
     def forward(self, obs, detach=False):
-        assert obs.ndim == 5  # B,n,C,H,W
-        B, n, C, H, W = obs.shape
-        obs = obs.view(B * n, C, H, W)
-        # logger.info((obs.ndim, obs.shape))
-        # b = obs.shape[0]
-        # obs = obs.view(b, -1, *self.obs_shape[-2:])
+        # logger.info(obs.shape)
+        assert obs.ndim == 4  # B,n,C,H,W
+        # B, C, H, W = obs.shape
+        # obs = obs.view(B, C, H, W)
 
         h = self.forward_conv(obs)
-        h = h.view(B, n, -1).permute(0, 2, 1)  # B,f,n
-        h = F.max_pool1d(input=h, kernel_size=n).squeeze()  # B,f
+        # h = h.view(B, n, -1).permute(0, 2, 1)  # B,f,n
+        # h = F.max_pool1d(input=h, kernel_size=n).squeeze()  # B,f
 
         if detach:
             h = h.detach()
