@@ -182,7 +182,8 @@ def main():
     ts = time.strftime("%m-%d", ts)
     env_name = args.domain_name + '-' + args.task_name
     exp_name = env_name + '-' + ts + '-im' + str(args.image_size) + '-b' \
-               + str(args.batch_size) + '-s' + str(args.seed) + '-' + args.encoder_type
+               + str(args.batch_size) + '-s' + str(args.seed) + '-n' + ','.join([str(v) for v in args.camera_ids]) \
+               + '-' + args.encoder_type
     args.work_dir = args.work_dir + '/' + exp_name
 
     utils.make_dir(args.work_dir)
