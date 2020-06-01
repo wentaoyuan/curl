@@ -268,7 +268,8 @@ class FrameStack(gym.Wrapper):
 
     def _get_obs(self):
         assert len(self._frames) == self._k
-        return np.concatenate(list(self._frames), axis=0)
+        obs = np.concatenate(list(self._frames), axis=1)
+        return obs
 
 
 def random_crop(imgs, output_size):
@@ -281,29 +282,39 @@ def random_crop(imgs, output_size):
     """
     # batch size
     # logger.info(imgs.shape)
-    n = imgs.shape[0]
-    img_size = imgs.shape[-1]
+    assert imgs.ndim == 5
+    B, n, C, H, W = imgs.shape
+    assert H == W
+    img_size = W
     crop_max = img_size - output_size
-    imgs = np.transpose(imgs, (0, 2, 3, 1))  # (B,H,W,C)
-    w1 = np.random.randint(0, crop_max, n)
-    h1 = np.random.randint(0, crop_max, n)
+    # logger.info(imgs.shape)
+    imgs = np.transpose(imgs, (0, 1, 3, 4, 2))  # (B,n,H,W,C)
+    # logger.info(imgs.shape)
+    imgs = imgs.reshape((B * n, H, W, C))
+    # logger.info(imgs.shape)
+    w1 = np.random.randint(0, crop_max, B * n)
+    h1 = np.random.randint(0, crop_max, B * n)
     # creates all sliding windows combinations of size (output_size)
     windows = view_as_windows(
         imgs, (1, output_size, output_size, 1))[..., 0, :, :, 0]
     # selects a random window for each batch element
-    cropped_imgs = windows[np.arange(n), w1, h1]
+    # logger.info(windows.shape)
+    cropped_imgs = windows[np.arange(B * n), w1, h1]
+    # logger.info(cropped_imgs.shape)
+    cropped_imgs = cropped_imgs.reshape((B, n, C, *cropped_imgs.shape[-2:]))
     # logger.info(cropped_imgs.shape)
     return cropped_imgs
 
 
 def center_crop_image(image, output_size):
+    assert image.ndim == 4
     # logger.info(image.shape)
-    h, w = image.shape[1:]
+    n, c, h, w = image.shape
     new_h, new_w = output_size, output_size
 
     top = (h - new_h) // 2
     left = (w - new_w) // 2
 
-    image = image[:, top:top + new_h, left:left + new_w]
+    image = image[..., top:top + new_h, left:left + new_w]
     # logger.info(image.shape)
     return image

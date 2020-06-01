@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+import torch.nn.functional as F
+
 from utils import get_logger
 
 logger = get_logger(__name__)
@@ -26,13 +28,13 @@ class PixelEncoder(nn.Module):
 
         # logger.info((obs_shape, feature_dim, num_layers, num_filters, output_logits))
 
-        assert len(obs_shape) == 3
+        assert len(obs_shape) == 4  # n, C, H, W
         self.obs_shape = obs_shape
         self.feature_dim = feature_dim
         self.num_layers = num_layers
 
         self.convs = nn.ModuleList(
-            [nn.Conv2d(obs_shape[0], num_filters, 3, stride=2)]
+            [nn.Conv2d(obs_shape[1], num_filters, 3, stride=2)]
         )
         for i in range(num_layers - 1):
             self.convs.append(nn.Conv2d(num_filters, num_filters, 3, stride=1))
@@ -68,12 +70,16 @@ class PixelEncoder(nn.Module):
         return h
 
     def forward(self, obs, detach=False):
+        assert obs.ndim == 5  # B,n,C,H,W
+        B, n, C, H, W = obs.shape
+        obs = obs.view(B * n, C, H, W)
         # logger.info((obs.ndim, obs.shape))
         # b = obs.shape[0]
         # obs = obs.view(b, -1, *self.obs_shape[-2:])
-        # logger.info(obs.shape)
+
         h = self.forward_conv(obs)
-        # logger.info(h.shape)
+        h = h.view(B, n, -1).permute(0, 2, 1)  # B,f,n
+        h = F.max_pool1d(input=h, kernel_size=n).squeeze()  # B,f
 
         if detach:
             h = h.detach()

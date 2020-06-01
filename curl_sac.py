@@ -348,9 +348,11 @@ class CurlSacAgent(object):
         return self.log_alpha.exp()
 
     def select_action(self, obs):
+        # logger.info(obs.shape)
         with torch.no_grad():
             obs = torch.FloatTensor(obs).to(self.device)
             obs = obs.unsqueeze(0)
+            # logger.info(obs.shape)
             mu, _, _, _ = self.actor(
                 obs, compute_pi=False, compute_log_pi=False
             )
@@ -362,8 +364,7 @@ class CurlSacAgent(object):
 
         with torch.no_grad():
             obs = torch.FloatTensor(obs).to(self.device)
-            if obs.ndim == 3:
-                obs = obs.unsqueeze(0)
+            obs = obs.unsqueeze(0)
             mu, pi, _, _ = self.actor(obs, compute_log_pi=False)
             return pi.cpu().data.numpy().flatten()
 

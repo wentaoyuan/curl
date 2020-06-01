@@ -111,12 +111,11 @@ class DMCWrapper(core.Env):
                     width=self._width,
                     camera_id=camera_id
                 ))
-            obs = np.concatenate(obs, axis=-1)  # H, W, C > n, H, W, C
+            obs = np.stack(obs, axis=0)  # H, W, C > n, H, W, C
             if self._channels_first:
-                obs = obs.transpose(2, 0, 1).copy()  # C, H, W > n, C, H, W
+                obs = obs.transpose(0, 3, 1, 2).copy()  # C, H, W > n, C, H, W
         else:
             obs = _flatten_obs(time_step.observation)
-        # print('wrappers:119 {}'.format(obs.shape))
         return obs
 
     def _convert_action(self, action):
