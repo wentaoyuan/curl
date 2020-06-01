@@ -29,7 +29,7 @@ class VideoRecorder(object):
                 frame = env.render(
                     mode='rgb_array',
                 )
-    
+
             self.frames.append(frame)
 
     def save(self, file_name):
