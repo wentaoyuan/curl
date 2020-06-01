@@ -8,6 +8,48 @@ import random
 from torch.utils.data import Dataset, DataLoader
 import time
 from skimage.util.shape import view_as_windows
+from logging import Formatter, DEBUG, getLogger, StreamHandler
+
+logger = None
+
+
+class MyFormatter(Formatter):
+    width = 50
+
+    def format(self, record):
+        width = 50
+        datefmt = '%H:%M:%S'
+        cpath = '%s:%s:%s' % (record.module, record.funcName, record.lineno)
+        cpath = cpath[-width:].ljust(width)
+        record.message = record.getMessage()
+        s = "[%s - %s] %s" % (self.formatTime(record, datefmt), cpath, record.getMessage())
+        if record.exc_info:
+            # Cache the traceback text to avoid converting it multiple times
+            # (it's constant anyway)
+            if not record.exc_text:
+                record.exc_text = self.formatException(record.exc_info)
+        if record.exc_text:
+            if s[-1:] != "\n":
+                s = s + "\n"
+            s = s + record.exc_text
+        return s
+
+
+def get_logger(name):
+    global logger
+    if logger is None:
+        LEVEL = DEBUG
+        logger = getLogger(name)
+        logger.setLevel(LEVEL)
+        ch = StreamHandler()
+        ch.setLevel(LEVEL)
+        formatter = MyFormatter()
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+    return logger
+
+
+logger = get_logger(__name__)
 
 
 class eval_mode(object):
@@ -129,6 +171,7 @@ class ReplayBuffer(Dataset):
         obses = self.obses[idxs]
         next_obses = self.next_obses[idxs]
         pos = obses.copy()
+        # logger.info((obses.shape, next_obses.shape))
 
         obses = random_crop(obses, self.image_size)
         next_obses = random_crop(next_obses, self.image_size)
@@ -237,10 +280,11 @@ def random_crop(imgs, output_size):
         imgs, batch images with shape (B,C,H,W)
     """
     # batch size
+    # logger.info(imgs.shape)
     n = imgs.shape[0]
     img_size = imgs.shape[-1]
     crop_max = img_size - output_size
-    imgs = np.transpose(imgs, (0, 2, 3, 1))
+    imgs = np.transpose(imgs, (0, 2, 3, 1))  # (B,H,W,C)
     w1 = np.random.randint(0, crop_max, n)
     h1 = np.random.randint(0, crop_max, n)
     # creates all sliding windows combinations of size (output_size)
@@ -248,10 +292,12 @@ def random_crop(imgs, output_size):
         imgs, (1, output_size, output_size, 1))[..., 0, :, :, 0]
     # selects a random window for each batch element
     cropped_imgs = windows[np.arange(n), w1, h1]
+    # logger.info(cropped_imgs.shape)
     return cropped_imgs
 
 
 def center_crop_image(image, output_size):
+    # logger.info(image.shape)
     h, w = image.shape[1:]
     new_h, new_w = output_size, output_size
 
@@ -259,4 +305,5 @@ def center_crop_image(image, output_size):
     left = (w - new_w) // 2
 
     image = image[:, top:top + new_h, left:left + new_w]
+    # logger.info(image.shape)
     return image

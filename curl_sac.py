@@ -8,6 +8,8 @@ import math
 import utils
 from encoder import make_encoder
 
+logger = utils.get_logger(__name__)
+
 LOG_FREQ = 10000
 
 
@@ -360,13 +362,15 @@ class CurlSacAgent(object):
 
         with torch.no_grad():
             obs = torch.FloatTensor(obs).to(self.device)
-            obs = obs.unsqueeze(0)
+            if obs.ndim == 3:
+                obs = obs.unsqueeze(0)
             mu, pi, _, _ = self.actor(obs, compute_log_pi=False)
             return pi.cpu().data.numpy().flatten()
 
     def update_critic(self, obs, action, reward, next_obs, not_done, L, step):
         with torch.no_grad():
             _, policy_action, log_pi, _ = self.actor(next_obs)
+            # logger.info((obs.shape, next_obs.shape))
             target_Q1, target_Q2 = self.critic_target(next_obs, policy_action)
             target_V = torch.min(target_Q1,
                                  target_Q2) - self.alpha.detach() * log_pi
@@ -446,6 +450,7 @@ class CurlSacAgent(object):
         if step % self.log_interval == 0:
             L.log('train/batch_reward', reward.mean(), step)
 
+        # logger.info((obs.shape, next_obs.shape))
         self.update_critic(obs, action, reward, next_obs, not_done, L, step)
 
         if step % self.actor_update_freq == 0:

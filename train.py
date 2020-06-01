@@ -18,6 +18,8 @@ from video import VideoRecorder
 from curl_sac import CurlSacAgent
 from torchvision import transforms
 
+logger = utils.get_logger(__name__)
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -165,9 +167,9 @@ def main():
         from_pixels=(args.encoder_type == 'pixel'),
         height=args.pre_transform_image_size,
         width=args.pre_transform_image_size,
-        frame_skip=args.action_repeat
+        frame_skip=args.action_repeat,
+        camera_ids=[0],
     )
-
     env.seed(args.seed)
 
     # stack several consecutive frames together
@@ -197,8 +199,9 @@ def main():
     action_shape = env.action_space.shape
 
     if args.encoder_type == 'pixel':
-        obs_shape = (3 * args.frame_stack, args.image_size, args.image_size)
-        pre_aug_obs_shape = (3 * args.frame_stack, args.pre_transform_image_size, args.pre_transform_image_size)
+        obs_shape = (env.num_camera * 3 * args.frame_stack, args.image_size, args.image_size)
+        pre_aug_obs_shape = (env.num_camera * 3 * args.frame_stack, args.pre_transform_image_size,
+                             args.pre_transform_image_size)
     else:
         obs_shape = env.observation_space.shape
         pre_aug_obs_shape = obs_shape
@@ -245,6 +248,7 @@ def main():
                 L.log('train/episode_reward', episode_reward, step)
 
             obs = env.reset()
+            # logger.info(obs.shape)
             done = False
             episode_reward = 0
             episode_step = 0
@@ -257,6 +261,7 @@ def main():
             action = env.action_space.sample()
         else:
             with utils.eval_mode(agent):
+                # logger.info(obs.shape)
                 action = agent.sample_action(obs)
 
         # run training update

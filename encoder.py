@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
 
+from utils import get_logger
+
+logger = get_logger(__name__)
+
 
 def tie_weights(src, trg):
     assert type(src) == type(trg)
@@ -19,6 +23,8 @@ class PixelEncoder(nn.Module):
 
     def __init__(self, obs_shape, feature_dim, num_layers=2, num_filters=32, output_logits=False):
         super().__init__()
+
+        # logger.info((obs_shape, feature_dim, num_layers, num_filters, output_logits))
 
         assert len(obs_shape) == 3
         self.obs_shape = obs_shape
@@ -46,19 +52,28 @@ class PixelEncoder(nn.Module):
     def forward_conv(self, obs):
         obs = obs / 255.
         self.outputs['obs'] = obs
+        # logger.info(obs.shape)
 
         conv = torch.relu(self.convs[0](obs))
         self.outputs['conv1'] = conv
+        # logger.info(conv.shape)
 
         for i in range(1, self.num_layers):
             conv = torch.relu(self.convs[i](conv))
             self.outputs['conv%s' % (i + 1)] = conv
+            # logger.info(conv.shape)
 
         h = conv.view(conv.size(0), -1)
+        # logger.info(h.shape)
         return h
 
     def forward(self, obs, detach=False):
+        # logger.info((obs.ndim, obs.shape))
+        # b = obs.shape[0]
+        # obs = obs.view(b, -1, *self.obs_shape[-2:])
+        # logger.info(obs.shape)
         h = self.forward_conv(obs)
+        # logger.info(h.shape)
 
         if detach:
             h = h.detach()
