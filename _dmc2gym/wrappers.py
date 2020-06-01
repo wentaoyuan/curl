@@ -36,18 +36,18 @@ def _flatten_obs(obs):
 
 class DMCWrapper(core.Env):
     def __init__(
-        self,
-        domain_name,
-        task_name,
-        task_kwargs=None,
-        visualize_reward={},
-        from_pixels=False,
-        height=84,
-        width=84,
-        camera_ids=[0, 1],
-        frame_skip=1,
-        environment_kwargs=None,
-        channels_first=True
+            self,
+            domain_name,
+            task_name,
+            task_kwargs=None,
+            visualize_reward={},
+            from_pixels=False,
+            height=84,
+            width=84,
+            camera_ids=(0, ),
+            frame_skip=1,
+            environment_kwargs=None,
+            channels_first=True
     ):
         assert 'random' in task_kwargs, 'please specify a seed, for deterministic behaviour'
         self._from_pixels = from_pixels
@@ -85,11 +85,11 @@ class DMCWrapper(core.Env):
             self._observation_space = _spec_to_box(
                 self._env.observation_spec().values()
             )
-            
+
         self._state_space = _spec_to_box(
-                self._env.observation_spec().values()
+            self._env.observation_spec().values()
         )
-        
+
         self.current_state = None
 
         # set seed

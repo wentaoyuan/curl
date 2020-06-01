@@ -33,6 +33,8 @@ def parse_args():
     parser.add_argument('--frame_stack', default=3, type=int)
     # replay buffer
     parser.add_argument('--replay_buffer_capacity', default=100000, type=int)
+    # camera
+    parser.add_argument('--camera_ids', nargs='+', default=[0], type=int)
     # train
     parser.add_argument('--agent', default='curl_sac', type=str)
     parser.add_argument('--init_steps', default=1000, type=int)
@@ -148,7 +150,6 @@ def make_agent(obs_shape, action_shape, args, device):
             log_interval=args.log_interval,
             detach_encoder=args.detach_encoder,
             curl_latent_dim=args.curl_latent_dim
-
         )
     else:
         assert 'agent is not supported: %s' % args.agent
@@ -168,7 +169,7 @@ def main():
         height=args.pre_transform_image_size,
         width=args.pre_transform_image_size,
         frame_skip=args.action_repeat,
-        camera_ids=[0],
+        camera_ids=args.camera_ids,
     )
     env.seed(args.seed)
 

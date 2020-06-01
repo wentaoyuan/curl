@@ -10,7 +10,7 @@ def make(
         from_pixels=False,
         height=84,
         width=84,
-        camera_ids=(0, 1),
+        camera_ids=(0, ),
         frame_skip=1,
         episode_length=1000,
         environment_kwargs=None,
