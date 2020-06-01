@@ -42,7 +42,7 @@ def parse_args():
     parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--hidden_dim', default=1024, type=int)
     # eval
-    parser.add_argument('--eval_freq', default=1000, type=int)
+    parser.add_argument('--eval_freq', default=10000, type=int)
     parser.add_argument('--num_eval_episodes', default=10, type=int)
     # critic
     parser.add_argument('--critic_lr', default=1e-3, type=float)
@@ -182,7 +182,7 @@ def main():
     ts = time.strftime("%m-%d", ts)
     env_name = args.domain_name + '-' + args.task_name
     exp_name = env_name + '-' + ts + '-im' + str(args.image_size) + '-b' \
-               + str(args.batch_size) + '-s' + str(args.seed) + '-n' + ','.join([str(v) for v in args.camera_ids]) \
+               + str(args.batch_size) + '-s' + str(args.seed) + '-c' + '_'.join([str(v) for v in args.camera_ids]) \
                + '-' + args.encoder_type
     args.work_dir = args.work_dir + '/' + exp_name
 
@@ -191,7 +191,7 @@ def main():
     model_dir = utils.make_dir(os.path.join(args.work_dir, 'model'))
     buffer_dir = utils.make_dir(os.path.join(args.work_dir, 'buffer'))
 
-    video = VideoRecorder(video_dir if args.save_video else None)
+    video = VideoRecorder(video_dir if args.save_video else None, camera_ids=args.camera_ids)
 
     with open(os.path.join(args.work_dir, 'args.json'), 'w') as f:
         json.dump(vars(args), f, sort_keys=True, indent=4)
