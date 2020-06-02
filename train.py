@@ -98,9 +98,7 @@ def evaluate(env, agent, video, num_episodes, L, step, args):
             while not done:
                 # center crop image
                 if args.encoder_type == 'pixel':
-                    logger.info(obs.shape)
                     obs = utils.center_crop_image(obs, args.image_size)
-                    logger.info(obs.shape)
                 with utils.eval_mode(agent):
                     if sample_stochastically:
                         action = agent.sample_action(obs)
@@ -179,7 +177,8 @@ def main():
 
     # stack several consecutive frames together
     if args.encoder_type == 'pixel':
-        env = utils.FrameStack(env, k=args.frame_stack)
+        stacked = len(args.camera_ids) > 1 and args.multi_view_encoder_type == 'stack'
+        env = utils.FrameStack(env, k=args.frame_stack, stacked=stacked)
 
     # make directory
     ts = time.gmtime()
@@ -269,7 +268,6 @@ def main():
                 L.log('train/episode_reward', episode_reward, step)
 
             obs = env.reset()
-            # logger.info(obs.shape)
             done = False
             episode_reward = 0
             episode_step = 0
@@ -282,7 +280,6 @@ def main():
             action = env.action_space.sample()
         else:
             with utils.eval_mode(agent):
-                # logger.info(obs.shape)
                 action = agent.sample_action(obs)
 
         # run training update

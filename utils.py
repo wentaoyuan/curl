@@ -239,10 +239,11 @@ class ReplayBuffer(Dataset):
 
 
 class FrameStack(gym.Wrapper):
-    def __init__(self, env, k):
+    def __init__(self, env, k, stacked):
         gym.Wrapper.__init__(self, env)
         self._k = k
         self._frames = deque([], maxlen=k)
+        self._stacked = stacked
         shp = env.observation_space.shape
         self.observation_space = gym.spaces.Box(
             low=0,
@@ -251,6 +252,10 @@ class FrameStack(gym.Wrapper):
             dtype=env.observation_space.dtype
         )
         self._max_episode_steps = env._max_episode_steps
+
+    @property
+    def axis(self):
+        return 1 if self._stacked else 0
 
     def reset(self):
         obs = self.env.reset()
@@ -265,7 +270,7 @@ class FrameStack(gym.Wrapper):
 
     def _get_obs(self):
         assert len(self._frames) == self._k
-        obs = np.concatenate(list(self._frames), axis=1)
+        obs = np.concatenate(list(self._frames), axis=self.axis)
         return obs
 
 

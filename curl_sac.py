@@ -348,11 +348,9 @@ class CurlSacAgent(object):
         return self.log_alpha.exp()
 
     def select_action(self, obs):
-        # logger.info(obs.shape)
         with torch.no_grad():
             obs = torch.FloatTensor(obs).to(self.device)
             obs = obs.unsqueeze(0)
-            logger.info(obs.shape)
             mu, _, _, _ = self.actor(
                 obs, compute_pi=False, compute_log_pi=False
             )
@@ -371,7 +369,6 @@ class CurlSacAgent(object):
     def update_critic(self, obs, action, reward, next_obs, not_done, L, step):
         with torch.no_grad():
             _, policy_action, log_pi, _ = self.actor(next_obs)
-            # logger.info((obs.shape, next_obs.shape))
             target_Q1, target_Q2 = self.critic_target(next_obs, policy_action)
             target_V = torch.min(target_Q1,
                                  target_Q2) - self.alpha.detach() * log_pi
@@ -451,7 +448,6 @@ class CurlSacAgent(object):
         if step % self.log_interval == 0:
             L.log('train/batch_reward', reward.mean(), step)
 
-        # logger.info((obs.shape, next_obs.shape))
         self.update_critic(obs, action, reward, next_obs, not_done, L, step)
 
         if step % self.actor_update_freq == 0:
