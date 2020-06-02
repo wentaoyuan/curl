@@ -79,7 +79,7 @@ def parse_args():
     parser.add_argument('--detach_encoder', default=False, action='store_true')
 
     parser.add_argument('--log_interval', default=100, type=int)
-    parser.add_argument('--multi_view_encoder_type', default='stack', type=str)
+    parser.add_argument('--multi_view_encoder_type', default='concat', type=str)
     args = parser.parse_args()
     return args
 
