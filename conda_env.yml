@@ -9,6 +9,7 @@ dependencies:
   - absl-py
   - pyparsing
   - pillow=6.1
+  - seaborn
   - pandas
   - pip
   - pip:

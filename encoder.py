@@ -26,15 +26,13 @@ class PixelEncoder(nn.Module):
     def __init__(self, obs_shape, feature_dim, num_layers=2, num_filters=32, output_logits=False):
         super().__init__()
 
-        # logger.info((obs_shape, feature_dim, num_layers, num_filters, output_logits))
-
-        assert len(obs_shape) == 4  # n, C, H, W
+        assert len(obs_shape) in [3, 4]  # (n,) C, H, W
         self.obs_shape = obs_shape
         self.feature_dim = feature_dim
         self.num_layers = num_layers
 
         self.convs = nn.ModuleList(
-            [nn.Conv2d(obs_shape[1], num_filters, 3, stride=2)]
+            [nn.Conv2d(self.channels, num_filters, 3, stride=2)]
         )
         for i in range(num_layers - 1):
             self.convs.append(nn.Conv2d(num_filters, num_filters, 3, stride=1))
@@ -46,6 +44,14 @@ class PixelEncoder(nn.Module):
         self.outputs = dict()
         self.output_logits = output_logits
 
+    @property
+    def stacked(self):
+        return len(self.obs_shape) == 4
+
+    @property
+    def channels(self):
+        return self.obs_shape[1] if self.stacked else self.obs_shape[0]
+
     def reparameterize(self, mu, logstd):
         std = torch.exp(logstd)
         eps = torch.randn_like(std)
@@ -54,32 +60,27 @@ class PixelEncoder(nn.Module):
     def forward_conv(self, obs):
         obs = obs / 255.
         self.outputs['obs'] = obs
-        # logger.info(obs.shape)
 
         conv = torch.relu(self.convs[0](obs))
         self.outputs['conv1'] = conv
-        # logger.info(conv.shape)
 
         for i in range(1, self.num_layers):
             conv = torch.relu(self.convs[i](conv))
             self.outputs['conv%s' % (i + 1)] = conv
-            # logger.info(conv.shape)
 
         h = conv.view(conv.size(0), -1)
-        # logger.info(h.shape)
         return h
 
     def forward(self, obs, detach=False):
-        assert obs.ndim == 5  # B,n,C,H,W
-        B, n, C, H, W = obs.shape
-        obs = obs.view(B * n, C, H, W)
-        # logger.info((obs.ndim, obs.shape))
-        # b = obs.shape[0]
-        # obs = obs.view(b, -1, *self.obs_shape[-2:])
-
-        h = self.forward_conv(obs)
-        h = h.view(B, n, -1).permute(0, 2, 1)  # B,f,n
-        h = F.max_pool1d(input=h, kernel_size=n).squeeze()  # B,f
+        if self.stacked:
+            assert obs.ndim == 5  # B,n,C,H,W
+            B, n, C, H, W = obs.shape
+            obs = obs.view(B * n, C, H, W)
+            h = self.forward_conv(obs)
+            h = h.view(B, n, -1).permute(0, 2, 1)  # B,f,n
+            h = F.max_pool1d(input=h, kernel_size=n).squeeze()  # B,f
+        else:
+            h = self.forward_conv(obs)
 
         if detach:
             h = h.detach()

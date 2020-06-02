@@ -113,6 +113,7 @@ class Visualizer(ModeInformation):
 
         sns.set(style="ticks", color_codes=True)
         sns.relplot(x='step', y=self.query, kind='line', hue='model', ci='sd', data=data_frame)
+        plt.suptitle(self.exp_name)
         plt.ylabel(self.query.replace('_', ' '))
         plt.xlabel('steps')
         plt.xticks(list(xvalues), list(xnames))

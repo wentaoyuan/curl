@@ -47,7 +47,8 @@ class DMCWrapper(core.Env):
             camera_ids=(0, ),
             frame_skip=1,
             environment_kwargs=None,
-            channels_first=True
+            channels_first=True,
+            multi_view_encoder_type='stack'
     ):
         assert 'random' in task_kwargs, 'please specify a seed, for deterministic behaviour'
         self._from_pixels = from_pixels
@@ -56,6 +57,7 @@ class DMCWrapper(core.Env):
         self._camera_ids = camera_ids
         self._frame_skip = frame_skip
         self._channels_first = channels_first
+        self._multi_view_encoder_type = multi_view_encoder_type
 
         # create task
         self._env = suite.load(
@@ -111,9 +113,16 @@ class DMCWrapper(core.Env):
                     width=self._width,
                     camera_id=camera_id
                 ))
-            obs = np.stack(obs, axis=0)  # H, W, C > n, H, W, C
-            if self._channels_first:
-                obs = obs.transpose(0, 3, 1, 2).copy()  # C, H, W > n, C, H, W
+            if self._multi_view_encoder_type == 'stack':
+                obs = np.stack(obs, axis=0)  # H, W, C > n, H, W, C
+                if self._channels_first:
+                    obs = obs.transpose(0, 3, 1, 2).copy()  # C, H, W > n, C, H, W
+            elif self._multi_view_encoder_type == 'concat':
+                obs = np.concatenate(obs, axis=-1)
+                if self._channels_first:
+                    obs = obs.transpose(2, 0, 1).copy()
+            else:
+                raise TypeError('invalid multi_view_encoder_type: {}'.format(self._multi_view_encoder_type))
         else:
             obs = _flatten_obs(time_step.observation)
         return obs

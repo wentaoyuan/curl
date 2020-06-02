@@ -144,7 +144,6 @@ class ReplayBuffer(Dataset):
         self.full = self.full or self.idx == 0
 
     def sample_proprio(self):
-
         idxs = np.random.randint(
             0, self.capacity if self.full else self.idx, size=self.batch_size
         )
@@ -162,8 +161,6 @@ class ReplayBuffer(Dataset):
         return obses, actions, rewards, next_obses, not_dones
 
     def sample_cpc(self):
-
-        start = time.time()
         idxs = np.random.randint(
             0, self.capacity if self.full else self.idx, size=self.batch_size
         )
@@ -278,43 +275,46 @@ def random_crop(imgs, output_size):
     and picking out random ones
 
     args:
-        imgs, batch images with shape (B,C,H,W)
+        imgs, batch images with shape (B,C,H,W) or (B,n,C,H,W)
     """
-    # batch size
-    # logger.info(imgs.shape)
-    assert imgs.ndim == 5
-    B, n, C, H, W = imgs.shape
+    assert imgs.ndim in [4, 5]
+    stacked = imgs.ndim == 5
+    if stacked:
+        B, n, C, H, W = imgs.shape
+    else:
+        B, C, H, W = imgs.shape
+        n = 1
     assert H == W
     img_size = W
     crop_max = img_size - output_size
-    # logger.info(imgs.shape)
-    imgs = np.transpose(imgs, (0, 1, 3, 4, 2))  # (B,n,H,W,C)
-    # logger.info(imgs.shape)
-    imgs = imgs.reshape((B * n, H, W, C))
-    # logger.info(imgs.shape)
+
+    if stacked:
+        imgs = np.transpose(imgs, (0, 1, 3, 4, 2))  # (B,n,H,W,C)
+        imgs = imgs.reshape((B * n, H, W, C))
+    else:
+        imgs = np.transpose(imgs, (0, 2, 3, 1))  # (B,H,W,C)
     w1 = np.random.randint(0, crop_max, B * n)
     h1 = np.random.randint(0, crop_max, B * n)
+
     # creates all sliding windows combinations of size (output_size)
     windows = view_as_windows(
         imgs, (1, output_size, output_size, 1))[..., 0, :, :, 0]
+
     # selects a random window for each batch element
-    # logger.info(windows.shape)
     cropped_imgs = windows[np.arange(B * n), w1, h1]
-    # logger.info(cropped_imgs.shape)
-    cropped_imgs = cropped_imgs.reshape((B, n, C, *cropped_imgs.shape[-2:]))
-    # logger.info(cropped_imgs.shape)
+    if stacked:
+        cropped_imgs = cropped_imgs.reshape((B, n, C, *cropped_imgs.shape[-2:]))
     return cropped_imgs
 
 
 def center_crop_image(image, output_size):
-    assert image.ndim == 4
-    # logger.info(image.shape)
-    n, c, h, w = image.shape
+    assert image.ndim in [3, 4]
+
+    h, w = image.shape[-2:]
     new_h, new_w = output_size, output_size
 
     top = (h - new_h) // 2
     left = (w - new_w) // 2
 
     image = image[..., top:top + new_h, left:left + new_w]
-    # logger.info(image.shape)
     return image

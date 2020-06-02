@@ -352,7 +352,7 @@ class CurlSacAgent(object):
         with torch.no_grad():
             obs = torch.FloatTensor(obs).to(self.device)
             obs = obs.unsqueeze(0)
-            # logger.info(obs.shape)
+            logger.info(obs.shape)
             mu, _, _, _ = self.actor(
                 obs, compute_pi=False, compute_log_pi=False
             )

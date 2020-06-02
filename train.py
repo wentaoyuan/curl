@@ -79,7 +79,7 @@ def parse_args():
     parser.add_argument('--detach_encoder', default=False, action='store_true')
 
     parser.add_argument('--log_interval', default=100, type=int)
-    parser.add_argument('--custom_name', default='', type=str)
+    parser.add_argument('--multi_view_encoder_type', default='stack', type=str)
     args = parser.parse_args()
     return args
 
@@ -98,7 +98,9 @@ def evaluate(env, agent, video, num_episodes, L, step, args):
             while not done:
                 # center crop image
                 if args.encoder_type == 'pixel':
+                    logger.info(obs.shape)
                     obs = utils.center_crop_image(obs, args.image_size)
+                    logger.info(obs.shape)
                 with utils.eval_mode(agent):
                     if sample_stochastically:
                         action = agent.sample_action(obs)
@@ -171,6 +173,7 @@ def main():
         width=args.pre_transform_image_size,
         frame_skip=args.action_repeat,
         camera_ids=args.camera_ids,
+        multi_view_encoder_type=args.multi_view_encoder_type,
     )
     env.seed(args.seed)
 
@@ -188,8 +191,8 @@ def main():
                 's{}'.format(args.seed),
                 'c{}'.format('_'.join([str(v) for v in args.camera_ids])),
                 args.encoder_type]
-    if args.custom_name:
-        exp_strs.append(args.custom_name)
+    if len(args.camera_ids) > 1:
+        exp_strs.append(args.multi_view_encoder_type)
     exp_name = '-'.join(exp_strs)
     logger.info(exp_name)
 
@@ -210,9 +213,16 @@ def main():
     action_shape = env.action_space.shape
 
     if args.encoder_type == 'pixel':
-        obs_shape = (env.num_camera, 3 * args.frame_stack, args.image_size, args.image_size)
-        pre_aug_obs_shape = (env.num_camera, 3 * args.frame_stack, args.pre_transform_image_size,
-                             args.pre_transform_image_size)
+        if args.multi_view_encoder_type == 'stack':
+            obs_shape = (env.num_camera, 3 * args.frame_stack, args.image_size, args.image_size)
+            pre_aug_obs_shape = (env.num_camera, 3 * args.frame_stack, args.pre_transform_image_size,
+                                 args.pre_transform_image_size)
+        elif args.multi_view_encoder_type == 'concat':
+            obs_shape = (env.num_camera * 3 * args.frame_stack, args.image_size, args.image_size)
+            pre_aug_obs_shape = (env.num_camera * 3 * args.frame_stack, args.pre_transform_image_size,
+                                 args.pre_transform_image_size)
+        else:
+            raise TypeError('invalid multi_view_encoder_type: {}'.format(args.multi_view_encoder_type))
     else:
         obs_shape = env.observation_space.shape
         pre_aug_obs_shape = obs_shape
