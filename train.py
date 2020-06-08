@@ -260,9 +260,9 @@ def main():
     if args.restore_train_step == 0:
         L.log('eval/episode', episode, 0)
         evaluate(env, agent, video, args.num_eval_episodes, L, 0, args)
-    for step in range(args.restore_train_step+1, args.num_train_steps+1):
+    for step in range(args.restore_train_step, args.num_train_steps):
         # evaluate agent periodically
-        if step % args.eval_freq == 0:
+        if (step + 1) % args.eval_freq == 0:
             L.log('eval/episode', episode, step)
             evaluate(env, agent, video, args.num_eval_episodes, L, step, args)
             if args.save_model:
