@@ -38,8 +38,8 @@ def parse_args():
     # train
     parser.add_argument('--agent', default='curl_sac', type=str)
     parser.add_argument('--init_steps', default=1000, type=int)
-    parser.add_argument('--num_train_steps', default=1000000, type=int)
-    parser.add_argument('--batch_size', default=32, type=int)
+    parser.add_argument('--num_train_steps', default=100000, type=int)
+    parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--hidden_dim', default=1024, type=int)
     # eval
     parser.add_argument('--eval_freq', default=10000, type=int)
@@ -77,6 +77,10 @@ def parse_args():
     parser.add_argument('--save_video', default=False, action='store_true')
     parser.add_argument('--save_model', default=False, action='store_true')
     parser.add_argument('--detach_encoder', default=False, action='store_true')
+    # restore
+    parser.add_argument('--load_buffer', default=False, action='store_true')
+    parser.add_argument('--load_model', default=False, action='store_true')
+    parser.add_argument('--restore_train_step', default=0, type=int)
 
     parser.add_argument('--log_interval', default=100, type=int)
     parser.add_argument('--multi_view_encoder_type', default='concat', type=str)
@@ -234,6 +238,8 @@ def main():
         device=device,
         image_size=args.image_size,
     )
+    if args.load_buffer:
+        replay_buffer.load(buffer_dir)
 
     agent = make_agent(
         obs_shape=obs_shape,
@@ -241,20 +247,26 @@ def main():
         args=args,
         device=device
     )
+    if args.load_model:
+        if args.encoder_type == 'pixel':
+            agent.load_curl(model_dir, args.restore_train_step)
+        agent.load(model_dir, args.restore_train_step)
 
     L = Logger(args.work_dir, use_tb=args.save_tb)
 
     episode, episode_reward, done = 0, 0, True
     start_time = time.time()
 
-    for step in range(args.num_train_steps):
+    for step in range(args.restore_train_step, args.num_train_steps):
         # evaluate agent periodically
 
         if step % args.eval_freq == 0:
             L.log('eval/episode', episode, step)
             evaluate(env, agent, video, args.num_eval_episodes, L, step, args)
             if args.save_model:
-                agent.save_curl(model_dir, step)
+                if args.encoder_type == 'pixel':
+                    agent.save_curl(model_dir, step)
+                agent.save(model_dir, step)
             if args.save_buffer:
                 replay_buffer.save(buffer_dir)
 

@@ -489,3 +489,8 @@ class CurlSacAgent(object):
         self.critic.load_state_dict(
             torch.load('%s/critic_%s.pt' % (model_dir, step))
         )
+
+    def load_curl(self, model_dir, step):
+        self.CURL.load_state_dict(
+            torch.load('%s/curl_%s.pt' % (model_dir, step))
+        )
