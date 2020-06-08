@@ -263,12 +263,12 @@ def main():
     for step in range(args.restore_train_step, args.num_train_steps):
         # evaluate agent periodically
         if (step + 1) % args.eval_freq == 0:
-            L.log('eval/episode', episode, step)
-            evaluate(env, agent, video, args.num_eval_episodes, L, step, args)
+            L.log('eval/episode', episode, step + 1)
+            evaluate(env, agent, video, args.num_eval_episodes, L, step + 1, args)
             if args.save_model:
                 if args.encoder_type == 'pixel':
-                    agent.save_curl(model_dir, step)
-                agent.save(model_dir, step)
+                    agent.save_curl(model_dir, step + 1)
+                agent.save(model_dir, step + 1)
             if args.save_buffer:
                 replay_buffer.save(buffer_dir)
 
