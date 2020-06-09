@@ -23,7 +23,7 @@ OUT_DIM_64 = {2: 29, 4: 25, 6: 21}
 class PixelEncoder(nn.Module):
     """Convolutional encoder of pixels observations."""
 
-    def __init__(self, obs_shape, feature_dim, num_layers=2, num_filters=32, output_logits=False):
+    def __init__(self, obs_shape, feature_dim, num_layers=2, num_filters=32, stacked=False, output_logits=False):
         super().__init__()
 
         assert len(obs_shape) in [3, 4]  # (n,) C, H, W
@@ -42,15 +42,12 @@ class PixelEncoder(nn.Module):
         self.ln = nn.LayerNorm(self.feature_dim)
 
         self.outputs = dict()
+        self.stacked = stacked
         self.output_logits = output_logits
 
     @property
-    def stacked(self):
-        return len(self.obs_shape) == 4
-
-    @property
     def channels(self):
-        return self.obs_shape[1] if self.stacked else self.obs_shape[0]
+        return self.obs_shape[1] if len(self.obs_shape) == 4 else self.obs_shape[0]
 
     def reparameterize(self, mu, logstd):
         std = torch.exp(logstd)
@@ -72,13 +69,16 @@ class PixelEncoder(nn.Module):
         return h
 
     def forward(self, obs, detach=False):
-        if self.stacked:
-            assert obs.ndim == 5  # B,n,C,H,W
-            B, n, C, H, W = obs.shape
-            obs = obs.view(B * n, C, H, W)
-            h = self.forward_conv(obs)
-            h = h.view(B, n, -1).permute(0, 2, 1)  # B,f,n
-            h = F.max_pool1d(input=h, kernel_size=n).squeeze()  # B,f
+        if obs.ndim == 5:  # B,n,C,H,W
+            if self.stacked:
+                B, n, C, H, W = obs.shape
+                obs = obs.view(B * n, C, H, W)
+                h = self.forward_conv(obs)
+                h = h.view(B, n, -1).permute(0, 2, 1)  # B,f,n
+                h = F.max_pool1d(input=h, kernel_size=n).squeeze()  # B,f
+            else:
+                # Only use first camera
+                h = self.forward_conv(obs[:, 0])
         else:
             h = self.forward_conv(obs)
 
@@ -141,9 +141,9 @@ _AVAILABLE_ENCODERS = {'pixel': PixelEncoder, 'identity': IdentityEncoder}
 
 
 def make_encoder(
-        encoder_type, obs_shape, feature_dim, num_layers, num_filters, output_logits=False
+        encoder_type, obs_shape, feature_dim, num_layers, num_filters, stack, output_logits=False
 ):
     assert encoder_type in _AVAILABLE_ENCODERS
     return _AVAILABLE_ENCODERS[encoder_type](
-        obs_shape, feature_dim, num_layers, num_filters, output_logits
+        obs_shape, feature_dim, num_layers, num_filters, stack, output_logits
     )

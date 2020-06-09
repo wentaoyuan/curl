@@ -50,14 +50,14 @@ class Actor(nn.Module):
     """MLP actor network."""
 
     def __init__(
-            self, obs_shape, action_shape, hidden_dim, encoder_type,
+            self, obs_shape, action_shape, hidden_dim, encoder_type, stacked,
             encoder_feature_dim, log_std_min, log_std_max, num_layers, num_filters
     ):
         super().__init__()
 
         self.encoder = make_encoder(
             encoder_type, obs_shape, encoder_feature_dim, num_layers,
-            num_filters, output_logits=True
+            num_filters, stacked, output_logits=True
         )
 
         self.log_std_min = log_std_min
@@ -141,13 +141,13 @@ class Critic(nn.Module):
 
     def __init__(
             self, obs_shape, action_shape, hidden_dim, encoder_type,
-            encoder_feature_dim, num_layers, num_filters
+            stacked, encoder_feature_dim, num_layers, num_filters
     ):
         super().__init__()
 
         self.encoder = make_encoder(
             encoder_type, obs_shape, encoder_feature_dim, num_layers,
-            num_filters, output_logits=True
+            num_filters, stacked, output_logits=True
         )
 
         self.Q1 = QFunction(
@@ -191,16 +191,20 @@ class CURL(nn.Module):
     CURL
     """
 
-    def __init__(self, obs_shape, z_dim, batch_size, critic, critic_target, output_type="continuous"):
+    def __init__(self, obs_shape, z_dim, batch_size, critic, critic_target, n_pos):
         super(CURL, self).__init__()
-        self.batch_size = batch_size
+        self.batch_size = batch_size * n_pos
 
         self.encoder = critic.encoder
 
         self.encoder_target = critic_target.encoder
 
         self.W = nn.Parameter(torch.rand(z_dim, z_dim))
-        self.output_type = output_type
+
+        self.n_pos = n_pos
+        self.pos_mask = torch.zeros(self.batch_size, self.batch_size, dtype=torch.bool)
+        for i in range(0, self.batch_size, n_pos):
+            self.pos_mask[i:i+n_pos, i:i+n_pos] = 1
 
     def encode(self, x, detach=False, ema=False):
         """
@@ -228,8 +232,16 @@ class CURL(nn.Module):
         """
         Wz = torch.matmul(self.W, z_pos.T)  # (z_dim,B)
         logits = torch.matmul(z_a, Wz)  # (B,B)
-        logits = logits - torch.max(logits, 1)[0][:, None]
+        logits = logits - torch.max(logits, dim=1, keepdim=True)[0]
         return logits
+
+    def nce_loss(self, sim):
+        pos_sim = sim[self.pos_mask].view(self.batch_size, self.n_pos)
+        neg_sim = sim[~self.pos_mask].view(self.batch_size, self.batch_size - self.n_pos)
+        numerator = pos_sim.exp()
+        denominator = numerator + neg_sim.exp().sum(dim=1, keepdim=True)
+        loss = -(numerator / denominator).log().mean()
+        return loss
 
 
 class CurlSacAgent(object):
@@ -240,6 +252,7 @@ class CurlSacAgent(object):
             obs_shape,
             action_shape,
             device,
+            batch_size=128,
             hidden_dim=256,
             discount=0.99,
             init_temperature=0.01,
@@ -255,6 +268,7 @@ class CurlSacAgent(object):
             critic_tau=0.005,
             critic_target_update_freq=2,
             encoder_type='pixel',
+            stacked=False,
             encoder_feature_dim=50,
             encoder_lr=1e-3,
             encoder_tau=0.005,
@@ -263,7 +277,8 @@ class CurlSacAgent(object):
             cpc_update_freq=1,
             log_interval=100,
             detach_encoder=False,
-            curl_latent_dim=128
+            curl_latent_dim=128,
+            curl_n_pos=1
     ):
         self.device = device
         self.discount = discount
@@ -274,24 +289,23 @@ class CurlSacAgent(object):
         self.cpc_update_freq = cpc_update_freq
         self.log_interval = log_interval
         self.image_size = obs_shape[-1]
-        self.curl_latent_dim = curl_latent_dim
         self.detach_encoder = detach_encoder
         self.encoder_type = encoder_type
 
         self.actor = Actor(
-            obs_shape, action_shape, hidden_dim, encoder_type,
+            obs_shape, action_shape, hidden_dim, encoder_type, stacked,
             encoder_feature_dim, actor_log_std_min, actor_log_std_max,
             num_layers, num_filters
         ).to(device)
 
         self.critic = Critic(
             obs_shape, action_shape, hidden_dim, encoder_type,
-            encoder_feature_dim, num_layers, num_filters
+            stacked, encoder_feature_dim, num_layers, num_filters
         ).to(device)
 
         self.critic_target = Critic(
             obs_shape, action_shape, hidden_dim, encoder_type,
-            encoder_feature_dim, num_layers, num_filters
+            stacked, encoder_feature_dim, num_layers, num_filters
         ).to(device)
 
         self.critic_target.load_state_dict(self.critic.state_dict())
@@ -320,7 +334,7 @@ class CurlSacAgent(object):
         if self.encoder_type == 'pixel':
             # create CURL encoder (the 128 batch size is probably unnecessary)
             self.CURL = CURL(obs_shape, encoder_feature_dim,
-                             self.curl_latent_dim, self.critic, self.critic_target, output_type='continuous').to(
+                             batch_size, self.critic, self.critic_target, curl_n_pos).to(
                 self.device)
 
             # optimizer for critic encoder for reconstruction loss
@@ -426,9 +440,8 @@ class CurlSacAgent(object):
         z_a = self.CURL.encode(obs_anchor)
         z_pos = self.CURL.encode(obs_pos, ema=True)
 
-        logits = self.CURL.compute_logits(z_a, z_pos)
-        labels = torch.arange(logits.shape[0]).long().to(self.device)
-        loss = self.cross_entropy_loss(logits, labels)
+        sim = self.CURL.compute_logits(z_a, z_pos)
+        loss = self.CURL.nce_loss(sim)
 
         self.encoder_optimizer.zero_grad()
         self.cpc_optimizer.zero_grad()

@@ -83,7 +83,7 @@ def parse_args():
     parser.add_argument('--restore_train_step', default=0, type=int)
 
     parser.add_argument('--log_interval', default=100, type=int)
-    parser.add_argument('--multi_view_encoder_type', default='concat', type=str)
+    parser.add_argument('--multi_view_encoder_type', choices=['first', 'concat', 'stack'], type=str)
     args = parser.parse_args()
     return args
 
@@ -126,12 +126,13 @@ def evaluate(env, agent, video, num_episodes, L, step, args):
     L.dump(step)
 
 
-def make_agent(obs_shape, action_shape, args, device):
+def make_agent(obs_shape, action_shape, stacked, curl_n_pos, args, device):
     if args.agent == 'curl_sac':
         return CurlSacAgent(
             obs_shape=obs_shape,
             action_shape=action_shape,
             device=device,
+            batch_size=args.batch_size,
             hidden_dim=args.hidden_dim,
             discount=args.discount,
             init_temperature=args.init_temperature,
@@ -147,6 +148,7 @@ def make_agent(obs_shape, action_shape, args, device):
             critic_tau=args.critic_tau,
             critic_target_update_freq=args.critic_target_update_freq,
             encoder_type=args.encoder_type,
+            stacked=stacked,
             encoder_feature_dim=args.encoder_feature_dim,
             encoder_lr=args.encoder_lr,
             encoder_tau=args.encoder_tau,
@@ -154,7 +156,8 @@ def make_agent(obs_shape, action_shape, args, device):
             num_filters=args.num_filters,
             log_interval=args.log_interval,
             detach_encoder=args.detach_encoder,
-            curl_latent_dim=args.curl_latent_dim
+            curl_latent_dim=args.curl_latent_dim,
+            curl_n_pos=curl_n_pos
         )
     else:
         assert 'agent is not supported: %s' % args.agent
@@ -181,8 +184,8 @@ def main():
 
     # stack several consecutive frames together
     if args.encoder_type == 'pixel':
-        stacked = len(args.camera_ids) > 1 and args.multi_view_encoder_type == 'stack'
-        env = utils.FrameStack(env, k=args.frame_stack, stacked=stacked)
+        env_stacked = env.num_camera > 1 and args.multi_view_encoder_type != 'concat'
+        env = utils.FrameStack(env, k=args.frame_stack, stacked=env_stacked)
 
     # make directory
     ts = time.gmtime()
@@ -194,7 +197,7 @@ def main():
                 's{}'.format(args.seed),
                 'c{}'.format('_'.join([str(v) for v in args.camera_ids])),
                 args.encoder_type]
-    if len(args.camera_ids) > 1:
+    if env.num_camera > 1:
         exp_strs.append(args.multi_view_encoder_type)
     exp_name = '-'.join(exp_strs)
     logger.info(exp_name)
@@ -216,7 +219,7 @@ def main():
     action_shape = env.action_space.shape
 
     if args.encoder_type == 'pixel':
-        if args.multi_view_encoder_type == 'stack':
+        if args.multi_view_encoder_type == 'stack' or args.multi_view_encoder_type == 'first':
             obs_shape = (env.num_camera, 3 * args.frame_stack, args.image_size, args.image_size)
             pre_aug_obs_shape = (env.num_camera, 3 * args.frame_stack, args.pre_transform_image_size,
                                  args.pre_transform_image_size)
@@ -236,14 +239,18 @@ def main():
         capacity=args.replay_buffer_capacity,
         batch_size=args.batch_size,
         device=device,
-        image_size=args.image_size,
+        image_size=args.image_size
     )
     if args.load_buffer:
         replay_buffer.load(buffer_dir)
 
+    agent_stacked = env.num_camera > 1 and args.multi_view_encoder_type == 'stack'
+    curl_n_pos = 2 if env_stacked else 1
     agent = make_agent(
         obs_shape=obs_shape,
         action_shape=action_shape,
+        curl_n_pos=curl_n_pos,
+        stacked=agent_stacked,
         args=args,
         device=device
     )

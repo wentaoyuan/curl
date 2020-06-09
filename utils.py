@@ -183,8 +183,13 @@ class ReplayBuffer(Dataset):
         not_dones = torch.as_tensor(self.not_dones[idxs], device=self.device)
 
         pos = torch.as_tensor(pos, device=self.device).float()
-        cpc_kwargs = dict(obs_anchor=obses, obs_pos=pos,
-                          time_anchor=None, time_pos=None)
+        if obses.ndim == 5:
+            B, n, C, H, W = obses.shape
+            cpc_kwargs = dict(obs_anchor=obses.view(B * n, C, H, W), obs_pos=pos.view(B * n, C, H, W),
+                              time_anchor=None, time_pos=None)
+        else:
+            cpc_kwargs = dict(obs_anchor=obses, obs_pos=pos,
+                            time_anchor=None, time_pos=None)
 
         return obses, actions, rewards, next_obses, not_dones, cpc_kwargs
 
