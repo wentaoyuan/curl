@@ -113,7 +113,7 @@ class DMCWrapper(core.Env):
                     width=self._width,
                     camera_id=camera_id
                 ))
-            if self._multi_view_encoder_type == 'stack':
+            if self._multi_view_encoder_type == 'stack' or self._multi_view_encoder_type == 'first':
                 obs = np.stack(obs, axis=0)  # H, W, C > n, H, W, C
                 if self._channels_first:
                     obs = obs.transpose(0, 3, 1, 2).copy()  # C, H, W > n, C, H, W
