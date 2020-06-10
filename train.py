@@ -79,6 +79,7 @@ def parse_args():
     parser.add_argument('--detach_encoder', default=False, action='store_true')
 
     parser.add_argument('--log_interval', default=100, type=int)
+    parser.add_argumnet('--custom_str', default='', type=str)
     args = parser.parse_args()
     return args
 
@@ -184,6 +185,8 @@ def main():
     exp_name = env_name + '-' + ts + '-im' + str(args.image_size) + '-b' \
                + str(args.batch_size) + '-s' + str(args.seed) + '-n' + ','.join([str(v) for v in args.camera_ids]) \
                + '-' + args.encoder_type
+    if args.custom_str:
+        exp_name += '-' + args.custom_str
     args.work_dir = args.work_dir + '/' + exp_name
 
     utils.make_dir(args.work_dir)
