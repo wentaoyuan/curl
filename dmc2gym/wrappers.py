@@ -121,11 +121,11 @@ class DMCWrapper(core.Env):
             if self._multi_view_encoder_type == MultiViewEncoderType.Pool:
                 obs = np.stack(obs, axis=0)  # H, W, C > n, H, W, C
                 if self._channels_first:
-                    obs = obs.transpose(0, 3, 1, 2).copy()  # C, H, W > n, C, H, W
+                    obs = obs.transpose(0, 3, 1, 2)  # C, H, W > n, C, H, W
             elif self._multi_view_encoder_type == MultiViewEncoderType.Stack:
                 obs = np.concatenate(obs, axis=-1)
                 if self._channels_first:
-                    obs = obs.transpose(2, 0, 1).copy()
+                    obs = obs.transpose(2, 0, 1)
             else:
                 raise TypeError('invalid multi_view_encoder_type: {}'.format(self._multi_view_encoder_type))
         else:

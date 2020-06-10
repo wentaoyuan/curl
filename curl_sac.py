@@ -71,9 +71,7 @@ class Actor(nn.Module):
         self.outputs = dict()
         self.apply(weight_init)
 
-    def forward(
-            self, obs, compute_pi=True, compute_log_pi=True, detach_encoder=False
-    ):
+    def forward(self, obs, compute_pi=True, compute_log_pi=True, detach_encoder=False):
         obs = self.encoder(obs, detach=detach_encoder)
 
         mu, log_std = self.trunk(obs).chunk(2, dim=-1)
@@ -338,10 +336,12 @@ class CurlSacAgent:
     def alpha(self):
         return self.log_alpha.exp()
 
+    def prepare_obs_for_action(self, obs: np.ndarray) -> torch.Tensor:
+        return torch.from_numpy(obs).contiguous().to(self.device).unsqueeze(0)
+
     def select_action(self, obs):
         with torch.no_grad():
-            obs = torch.FloatTensor(obs).to(self.device)
-            obs = obs.unsqueeze(0)
+            obs = self.prepare_obs_for_action(obs)
             mu, _, _, _ = self.actor(
                 obs, compute_pi=False, compute_log_pi=False
             )
@@ -352,8 +352,7 @@ class CurlSacAgent:
             obs = utils.center_crop_image(obs, self.args)
 
         with torch.no_grad():
-            obs = torch.FloatTensor(obs).to(self.device)
-            obs = obs.unsqueeze(0)
+            obs = self.prepare_obs_for_action(obs)
             mu, pi, _, _ = self.actor(obs, compute_log_pi=False)
             return pi.cpu().data.numpy().flatten()
 
