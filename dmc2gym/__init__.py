@@ -1,6 +1,8 @@
 import gym
 from gym.envs.registration import register
 
+from argument import MultiViewEncoderType
+
 
 def make(
         domain_name,
@@ -16,9 +18,9 @@ def make(
         environment_kwargs=None,
         time_limit=None,
         channels_first=True,
-        multi_view_encoder_type='stack',
+        multi_view_encoder_type=MultiViewEncoderType.Stack,
 ):
-    env_id = 'dmc_%s_%s-v1' % (domain_name, task_name)
+    env_id = 'dmc_{}_{}-v1'.format(domain_name, task_name)
 
     if from_pixels:
         assert not visualize_reward, 'cannot use visualize reward when learning from pixels'

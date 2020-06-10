@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import torch
 import numpy as np
 import torch.nn as nn
@@ -9,6 +11,8 @@ from torch.utils.data import Dataset, DataLoader
 import time
 from skimage.util.shape import view_as_windows
 from logging import Formatter, DEBUG, getLogger, StreamHandler
+
+from argument import Argument, MultiViewEncoderType
 
 logger = None
 
@@ -274,6 +278,16 @@ class FrameStack(gym.Wrapper):
         return obs
 
 
+def fetch_obs_shape(args: Argument, pre_aug: bool) -> Tuple[int, ...]:
+    image_size = args.pre_transform_image_size if pre_aug else args.image_size
+    if args.multi_view_encoder_type == MultiViewEncoderType.Stack:
+        return len(args.camera_ids) * args.frame_stack * 3, image_size, image_size
+    elif args.multi_view_encoder_type == MultiViewEncoderType.Pool:
+        return len(args.camera_ids), args.frame_stack * 3, image_size, image_size
+    else:
+        raise TypeError('invalid multi_view_encoder_type: {}'.format(args.multi_view_encoder_type))
+
+
 def random_crop(imgs, output_size):
     """
     Vectorized way to do random crop using sliding windows
@@ -312,14 +326,21 @@ def random_crop(imgs, output_size):
     return cropped_imgs
 
 
-def center_crop_image(image, output_size):
-    assert image.ndim in [3, 4]
+def center_crop_image(image, args: Argument):
+    target_shape = fetch_obs_shape(args, pre_aug=True)
+    assert image.ndim == len(target_shape)
+    for i, j in zip(image.shape, target_shape):
+        assert i == j
 
     h, w = image.shape[-2:]
-    new_h, new_w = output_size, output_size
+    new_h, new_w = args.image_size, args.image_size
 
     top = (h - new_h) // 2
     left = (w - new_w) // 2
 
     image = image[..., top:top + new_h, left:left + new_w]
+
+    target_shape = fetch_obs_shape(args, pre_aug=False)
+    for i, j in zip(image.shape, target_shape):
+        assert i == j
     return image

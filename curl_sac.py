@@ -2,10 +2,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import copy
-import math
 
 import utils
+from argument import Argument
 from encoder import make_encoder
 
 logger = utils.get_logger(__name__)
@@ -232,104 +231,96 @@ class CURL(nn.Module):
         return logits
 
 
-class CurlSacAgent(object):
+class CurlSacAgent:
     """CURL representation learning with SAC."""
-
     def __init__(
             self,
             obs_shape,
             action_shape,
             device,
-            hidden_dim=256,
-            discount=0.99,
-            init_temperature=0.01,
-            alpha_lr=1e-3,
-            alpha_beta=0.9,
-            actor_lr=1e-3,
-            actor_beta=0.9,
-            actor_log_std_min=-10,
-            actor_log_std_max=2,
-            actor_update_freq=2,
-            critic_lr=1e-3,
-            critic_beta=0.9,
-            critic_tau=0.005,
-            critic_target_update_freq=2,
-            encoder_type='pixel',
-            encoder_feature_dim=50,
-            encoder_lr=1e-3,
-            encoder_tau=0.005,
-            num_layers=4,
-            num_filters=32,
-            cpc_update_freq=1,
-            log_interval=100,
-            detach_encoder=False,
-            curl_latent_dim=128
+            args: Argument
     ):
-        self.device = device
-        self.discount = discount
-        self.critic_tau = critic_tau
-        self.encoder_tau = encoder_tau
-        self.actor_update_freq = actor_update_freq
-        self.critic_target_update_freq = critic_target_update_freq
-        self.cpc_update_freq = cpc_update_freq
-        self.log_interval = log_interval
         self.image_size = obs_shape[-1]
-        self.curl_latent_dim = curl_latent_dim
-        self.detach_encoder = detach_encoder
-        self.encoder_type = encoder_type
+        self.device = device
+        self.args = args
+
+        self.hidden_dim = args.hidden_dim
+        self.discount = args.discount
+        self.init_temperature = args.init_temperature
+        self.alpha_lr = args.alpha_lr
+        self.alpha_beta = args.alpha_beta
+        self.actor_lr = args.actor_lr
+        self.actor_beta = args.actor_beta
+        self.actor_log_std_min = args.actor_log_std_min
+        self.actor_log_std_max = args.actor_log_std_max
+        self.actor_update_freq = args.actor_update_freq
+        self.critic_lr = args.critic_lr
+        self.critic_beta = args.critic_beta
+        self.critic_tau = args.critic_tau
+        self.critic_target_update_freq = args.critic_target_update_freq
+        self.encoder_type = args.encoder_type
+        self.encoder_feature_dim = args.encoder_feature_dim
+        self.encoder_lr = args.encoder_lr
+        self.encoder_tau = args.encoder_tau
+        self.num_layers = args.num_layers
+        self.num_filters = args.num_filters
+        self.cpc_update_freq = args.cpc_update_freq
+        self.log_interval = args.log_interval
+        self.detach_encoder = args.detach_encoder
+        self.curl_latent_dim = args.curl_latent_dim
 
         self.actor = Actor(
-            obs_shape, action_shape, hidden_dim, encoder_type,
-            encoder_feature_dim, actor_log_std_min, actor_log_std_max,
-            num_layers, num_filters
+            obs_shape, action_shape, self.hidden_dim, self.encoder_type,
+            self.encoder_feature_dim, self.actor_log_std_min, self.actor_log_std_max,
+            self.num_layers, self.num_filters
         ).to(device)
 
         self.critic = Critic(
-            obs_shape, action_shape, hidden_dim, encoder_type,
-            encoder_feature_dim, num_layers, num_filters
-        ).to(device)
+            obs_shape, action_shape, self.hidden_dim, self.encoder_type,
+            self.encoder_feature_dim, self.num_layers, self.num_filters
+        ).to(self.device)
 
         self.critic_target = Critic(
-            obs_shape, action_shape, hidden_dim, encoder_type,
-            encoder_feature_dim, num_layers, num_filters
-        ).to(device)
+            obs_shape, action_shape, self.hidden_dim, self.encoder_type,
+            self.encoder_feature_dim, self.num_layers, self.num_filters
+        ).to(self.device)
 
         self.critic_target.load_state_dict(self.critic.state_dict())
 
         # tie encoders between actor and critic, and CURL and critic
         self.actor.encoder.copy_conv_weights_from(self.critic.encoder)
 
-        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
+        self.log_alpha = torch.tensor(np.log(self.init_temperature)).to(self.device)
         self.log_alpha.requires_grad = True
         # set target entropy to -|A|
         self.target_entropy = -np.prod(action_shape)
 
         # optimizers
         self.actor_optimizer = torch.optim.Adam(
-            self.actor.parameters(), lr=actor_lr, betas=(actor_beta, 0.999)
+            self.actor.parameters(), lr=self.actor_lr, betas=(self.actor_beta, 0.999)
         )
 
         self.critic_optimizer = torch.optim.Adam(
-            self.critic.parameters(), lr=critic_lr, betas=(critic_beta, 0.999)
+            self.critic.parameters(), lr=self.critic_lr, betas=(self.critic_beta, 0.999)
         )
 
         self.log_alpha_optimizer = torch.optim.Adam(
-            [self.log_alpha], lr=alpha_lr, betas=(alpha_beta, 0.999)
+            [self.log_alpha], lr=self.alpha_lr, betas=(self.alpha_beta, 0.999)
         )
 
         if self.encoder_type == 'pixel':
             # create CURL encoder (the 128 batch size is probably unnecessary)
-            self.CURL = CURL(obs_shape, encoder_feature_dim,
+            self.CURL = CURL(obs_shape, self.encoder_feature_dim,
                              self.curl_latent_dim, self.critic, self.critic_target, output_type='continuous').to(
                 self.device)
 
             # optimizer for critic encoder for reconstruction loss
             self.encoder_optimizer = torch.optim.Adam(
-                self.critic.encoder.parameters(), lr=encoder_lr
+                self.critic.encoder.parameters(), lr=self.encoder_lr
             )
 
             self.cpc_optimizer = torch.optim.Adam(
-                self.CURL.parameters(), lr=encoder_lr
+                self.CURL.parameters(), lr=self.encoder_lr
             )
         self.cross_entropy_loss = nn.CrossEntropyLoss()
 
@@ -358,7 +349,7 @@ class CurlSacAgent(object):
 
     def sample_action(self, obs):
         if obs.shape[-1] != self.image_size:
-            obs = utils.center_crop_image(obs, self.image_size)
+            obs = utils.center_crop_image(obs, self.args)
 
         with torch.no_grad():
             obs = torch.FloatTensor(obs).to(self.device)

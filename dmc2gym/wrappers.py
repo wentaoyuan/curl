@@ -1,7 +1,12 @@
-from gym import core, spaces
+import gym
+import numpy as np
 from dm_control import suite
 from dm_env import specs
-import numpy as np
+from gym import core, spaces
+
+from argument import MultiViewEncoderType
+
+gym.logger.set_level(40)
 
 
 def _spec_to_box(spec):
@@ -48,7 +53,7 @@ class DMCWrapper(core.Env):
             frame_skip=1,
             environment_kwargs=None,
             channels_first=True,
-            multi_view_encoder_type='stack'
+            multi_view_encoder_type=MultiViewEncoderType.Stack
     ):
         assert 'random' in task_kwargs, 'please specify a seed, for deterministic behaviour'
         self._from_pixels = from_pixels
@@ -113,11 +118,11 @@ class DMCWrapper(core.Env):
                     width=self._width,
                     camera_id=camera_id
                 ))
-            if self._multi_view_encoder_type == 'stack':
+            if self._multi_view_encoder_type == MultiViewEncoderType.Pool:
                 obs = np.stack(obs, axis=0)  # H, W, C > n, H, W, C
                 if self._channels_first:
                     obs = obs.transpose(0, 3, 1, 2).copy()  # C, H, W > n, C, H, W
-            elif self._multi_view_encoder_type == 'concat':
+            elif self._multi_view_encoder_type == MultiViewEncoderType.Stack:
                 obs = np.concatenate(obs, axis=-1)
                 if self._channels_first:
                     obs = obs.transpose(2, 0, 1).copy()
@@ -148,7 +153,7 @@ class DMCWrapper(core.Env):
     def action_space(self):
         return self._norm_action_space
 
-    def seed(self, seed):
+    def seed(self, seed=None):
         self._true_action_space.seed(seed)
         self._norm_action_space.seed(seed)
         self._observation_space.seed(seed)
