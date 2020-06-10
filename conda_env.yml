@@ -5,7 +5,7 @@ dependencies:
   - python=3.8
   - pytorch::pytorch
   - pytorch::torchvision
-  - pytorch::cudatoolkit=10.2
+  - cudatoolkit=10.2
   - absl-py
   - pyparsing
   - pillow
